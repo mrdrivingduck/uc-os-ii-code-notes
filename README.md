@@ -1,5 +1,6 @@
-# uc-os-ii-tutorials-notes
-🔌 Notes of reading μC/OS-II tutorials.
+# uc-os-ii-code-notes
+
+🔌 Notes of reading μC/OS-II code.
 
 Created by : Mr Dk.
 
