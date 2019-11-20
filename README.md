@@ -20,3 +20,11 @@ Move on! 😈
 
 ---
 
+## 2019 / 11 / 20
+
+Finished all parts except __Porting__ (Chapter 10).
+
+_μC/OS-II_ is much easier than _Linux_ . 😭
+
+---
+
