@@ -1,6 +1,6 @@
 # uc-os-ii-code-notes
 
-🔌 Notes of reading μC/OS-II code.
+🐤 Notes of reading μC/OS-II code.
 
 Created by : Mr Dk.
 
