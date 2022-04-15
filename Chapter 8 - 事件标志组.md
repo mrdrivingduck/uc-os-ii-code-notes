@@ -10,23 +10,9 @@ Nanjing, Jiangsu, China
 
 ## 8.1 概述
 
-书上的描述给人整晕了
+书上的描述给人整晕了，我决定在自己描述一下。与 Linux 的信号位图类似，在 μC/OS-II 中可以分配一个由多个 bit 组成的事件标志组，提供函数可以对其中的某位或某几位标志置位或复位，代表事件发生。每个任务可以等待某个事件标志组的某位或某几位标志置位或复位。
 
-我决定在自己描述一下
-
-与 Linux 的信号位图类似
-
-在 μC/OS-II 中可以分配一个由多个 bit 组成的事件标志组
-
-提供函数可以对其中的某位或某几位标志置位或复位，代表事件发生
-
-每个任务可以等待某个事件标志组的某位或某几位标志置位或复位
-
-需要两个数据结构：
-
-事件标志组数据结构 `OS_FLAG_GRP`
-
-所有的事件标志记录在这个结构体中
+事件标志组数据结构 `OS_FLAG_GRP`：所有的事件标志记录在这个结构体中。
 
 ```c
 typedef struct os_flag_grp {                /* Event Flag Group                                        */
@@ -39,11 +25,7 @@ typedef struct os_flag_grp {                /* Event Flag Group                 
 } OS_FLAG_GRP;
 ```
 
-其中的 `OSFlagFlags` 可以是 8、16 或 32 位
-
-`OSFlagWaitList` 指向每个任务对该标志组的等待信息形成的链表
-
-每个任务的等待信息保存在第二个数据结构 `OS_FLAG_NODE` 中
+其中的 `OSFlagFlags` 可以是 8、16 或 32 位。`OSFlagWaitList` 指向每个任务对该标志组的等待信息形成的链表。每个任务的等待信息保存在第二个数据结构 `OS_FLAG_NODE` 中。
 
 ```c
 typedef struct os_flag_node {               /* Event Flag Wait List Node                               */
@@ -60,33 +42,21 @@ typedef struct os_flag_node {               /* Event Flag Wait List Node        
 } OS_FLAG_NODE;
 ```
 
-* `OSFlagNodeNext` 和 `OSFlagNodePrev` 维护各个任务的等待信息的双向链表
-* `OSFlagNodeTCB` 指向等待事件标志组的 TCB
-* `OSFlagNodeFlagGrp` 指向等待的事件标志组
-* `OSFlagNodeFlags` 记录了该任务等待时间标志组中的哪几位
-* `OSFlagNodeWaitType` 记录了等待方式
-    * `OS_FLAG_WAIT_CLR_ALL` / `OS_FLAG_WAIT_CLR_AND` - 所有指定事件标志清 0
-    * `OS_FLAG_WAIT_CLR_ANY` / `OS_FLAG_WAIT_CLR_OR` - 任意指定事件标志清 0
-    * `OS_FLAG_WAIT_SET_ALL` / `OS_FLAG_WAIT_SET_AND` - 所有指定事件标志置 1
-    * `OS_FLAG_WAIT_SET_ANY` / `OS_FLAG_WAIT_SET_OR` - 任意指定事件标志置 1
+- `OSFlagNodeNext` 和 `OSFlagNodePrev` 维护各个任务的等待信息的双向链表
+- `OSFlagNodeTCB` 指向等待事件标志组的 TCB
+- `OSFlagNodeFlagGrp` 指向等待的事件标志组
+- `OSFlagNodeFlags` 记录了该任务等待时间标志组中的哪几位
+- `OSFlagNodeWaitType` 记录了等待方式
+  - `OS_FLAG_WAIT_CLR_ALL` / `OS_FLAG_WAIT_CLR_AND` - 所有指定事件标志清 0
+  - `OS_FLAG_WAIT_CLR_ANY` / `OS_FLAG_WAIT_CLR_OR` - 任意指定事件标志清 0
+  - `OS_FLAG_WAIT_SET_ALL` / `OS_FLAG_WAIT_SET_AND` - 所有指定事件标志置 1
+  - `OS_FLAG_WAIT_SET_ANY` / `OS_FLAG_WAIT_SET_OR` - 任意指定事件标志置 1
 
-> 总结一下
->
-> OS_FLAG_GRP 维护事件标志组本身
->
-> 每个任务可以注册 OS_FLAG_NODE，串接到 OS_FLAG_GRP 上
->
-> OS_FLAG_NODE 随着对事件的请求，和事件的发生，而被动态创建或撤销
-
----
+> 总结一下，`OS_FLAG_GRP` 维护事件标志组本身，每个任务可以注册 `OS_FLAG_NODE`，串接到 `OS_FLAG_GRP` 上。`OS_FLAG_NODE` 随着对事件的请求，和事件的发生，而被动态创建或撤销。
 
 ## 8.2 建立事件标志组 - OSFlagCreate() 函数
 
-从空闲事件标志组链表中取一个 `OS_FLAG_GRP` 变量
-
-并用提供的 flag 参数进行初始化
-
-返回指向这个 `OS_FLAG_GRP` 的指针
+从空闲事件标志组链表中取一个 `OS_FLAG_GRP` 变量，并用提供的 flag 参数进行初始化。返回指向这个 `OS_FLAG_GRP` 的指针。
 
 ```c
 /*
@@ -156,28 +126,16 @@ OS_FLAG_GRP  *OSFlagCreate (OS_FLAGS  flags,
 }
 ```
 
----
-
 ## 8.3 等待事件标志 - OSFlagPend() 函数
 
-等待事件标志组中的事件标志位
+等待事件标志组中的事件标志位。参数中需要给定一个 bitmap，哪位置 1 说明需要检查哪位，置 0 表示忽略。还需要给定等待事件标志的方式：
 
-参数中需要给定一个 bitmap，哪位置 1 说明需要检查哪位，置 0 表示忽略
+- 全都清 0
+- 任意清 0
+- 全都置 1
+- 任意置 1
 
-还需要给定等待事件标志的方式：
-
-* 全都清 0
-* 任意清 0
-* 全都置 1
-* 任意置 1
-
-另外，在等待类型中，还可以在后面 `OS_FLAG_WAIT_SET_ANY + OS_FLAG_CONSUME`
-
-* 使对应的事件标志在使用后被消费
-
-如果事件标志不能被满足，则挂起调用者
-
-* 挂起的过程中，需要用一个 `OS_FLAG_NODE` 记录任务需求和等待方式，链接到 `OS_FLAG_GRP` 上
+另外，在等待类型中，还可以在后面 `OS_FLAG_WAIT_SET_ANY + OS_FLAG_CONSUME`，使对应的事件标志在使用后被消费。如果事件标志不能被满足，则挂起调用者。挂起的过程中，需要用一个 `OS_FLAG_NODE` 记录任务需求和等待方式，链接到 `OS_FLAG_GRP` 上。
 
 ```c
 /*
@@ -407,22 +365,16 @@ OS_FLAGS  OSFlagPend (OS_FLAG_GRP  *pgrp,
 
 ## 8.4 设置事件标志 - OSFlagPost() 函数
 
-用于设置事件标志组中的事件标志位
-
-对指定的标志位 __置位__ 或 __复位__
+用于设置事件标志组中的事件标志位，对指定的标志位 **置位** 或 **复位**。
 
 原理：
 
-* 对 `OS_FLAG_GRP` 中的成员变量 `OSFlagFlags` 按照参数的要求进行置位或复位
-* 检查是否有任务正在等待事件标志组，如果有，则依次判断条件是否满足
-    * 如果满足，则使任务转为就绪
-    * (将 `OS_FLAG_NODE` 从等待链表中移出？)
+- 对 `OS_FLAG_GRP` 中的成员变量 `OSFlagFlags` 按照参数的要求进行置位或复位
+- 检查是否有任务正在等待事件标志组，如果有，则依次判断条件是否满足
+  - 如果满足，则使任务转为就绪
+  - (将 `OS_FLAG_NODE` 从等待链表中移出？)
 
-> 令我奇怪的是
->
-> 好像没看到对 `OS_FLAG_CONSUME` 的处理啊
->
-> emm...好像不必在这里处理？因为在 `OSFlagPend()` 中已经处理过了？
+> 令我奇怪的是，好像没看到对 `OS_FLAG_CONSUME` 的处理啊。emm...好像不必在这里处理？因为在 `OSFlagPend()` 中已经处理过了？
 
 ```c
 /*
@@ -578,18 +530,14 @@ OS_FLAGS  OSFlagPost (OS_FLAG_GRP  *pgrp,
 }
 ```
 
----
-
 ## 8.5 删除事件标志组 - OSFlagDel() 函数
 
-删除事件标志组
-
-* 与之前一样，可以指明删除条件
+删除事件标志组。与之前一样，可以指明删除条件
 
 原理：
 
-* 将 `OS_FLAG_GRP` 置为未使用，并归还给空闲链表
-* 遍历所有等待标志组的任务，使所有任务就绪
+- 将 `OS_FLAG_GRP` 置为未使用，并归还给空闲链表
+- 遍历所有等待标志组的任务，使所有任务就绪
 
 ```c
 /*
@@ -720,17 +668,9 @@ OS_FLAG_GRP  *OSFlagDel (OS_FLAG_GRP  *pgrp,
 #endif
 ```
 
----
-
 ## 8.6 无等待地获得事件标志 - OSFlagAccept() 函数
 
-检查事件标志组中的标志位是置位还是复位
-
-可以检查某一位，也可以检查所有的位
-
-* 传入一个参数，检查所有置 1 的位即可
-
-不挂起调用者，所以任务和中断都可以调用
+检查事件标志组中的标志位是置位还是复位。可以检查某一位，也可以检查所有的位：传入一个参数，检查所有置 1 的位即可。不挂起调用者，所以任务和中断都可以调用。
 
 ```c
 /*
@@ -888,13 +828,9 @@ OS_FLAGS  OSFlagAccept (OS_FLAG_GRP  *pgrp,
 #endif
 ```
 
----
-
 ## 8.7 查询事件标志组的状态 - OSFlagQuery() 函数
 
-查询事件标志组当前的状态
-
-只返回事件标志组中的 flag
+查询事件标志组当前的状态，只返回事件标志组中的 flag。
 
 ```c
 /*
@@ -952,13 +888,6 @@ OS_FLAGS  OSFlagQuery (OS_FLAG_GRP  *pgrp,
 #endif
 ```
 
----
-
 ## Summary
 
-这个通信机制的实现方式和之前几个有些不一样
-
-主要是数据结构上的变化吧 理清关系就行
-
----
-
+这个通信机制的实现方式和之前几个有些不一样，主要是数据结构上的变化吧，理清关系就行。

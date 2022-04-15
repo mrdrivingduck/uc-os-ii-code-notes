@@ -10,48 +10,26 @@ Nanjing, Jiangsu, China
 
 ## 6.2.1 概述
 
-互斥信号量 (Mutual Exclusion Semaphores)
+互斥信号量 (Mutual Exclusion Semaphores) 也是一个二值信号量。但不同的是，它能够解决 **优先级反转问题**：当高优先级任务需要使用某个共享资源，而资源又被一个低优先级的任务所占用。为了解决优先级反转，应该将低优先级任务的优先级提高到高于优先级任务的优先级，直到低优先级任务处理完毕共享资源。
 
-也是一个二值信号量
+μC/OS-II 的解决方法：将占用共享资源的低优先级任务的优先级提升到略高于高优先级任务的优先级，**优先级继承优先级** (Priority Inderitance Priority, PIP)。所以互斥信号量在 ECB 中的有效部分包含：
 
-但不同的是，它能够解决 __优先级反转问题__
+- 表示互斥信号量的标志
+- PIP
+- 等待任务列表
 
-* 当高优先级任务需要使用某个共享资源
-* 而资源又被一个低优先级的任务所占用
-
-为了解决优先级反转
-
-应该将低优先级任务的优先级提高到高于优先级任务的优先级
-
-直到低优先级任务处理完毕共享资源
-
-μC/OS-II 的解决方法：
-
-* 将占用共享资源的低优先级任务的优先级提升到略高于高优先级任务的优先级
-* __优先级继承优先级__ (Priority Inderitance Priority, PIP)
-
-所以互斥信号量在 ECB 中的有效部分包含：
-
-* 表示互斥信号量的标志
-* PIP
-* 等待任务列表
-
-同样，互斥信号量可以在编译前直接被剪裁掉
-
----
+同样，互斥信号量可以在编译前直接被剪裁掉。
 
 ## 6.2.2 建立互斥信号量 - OSMutexCreate() 函数
 
-用于建立和初始化 mutex
-
-显然需要在初始化时给出 PIP
+用于建立和初始化 mutex，显然需要在初始化时给出 PIP。
 
 原理：
 
-* 从空闲 ECB 链表中取出一个 ECB
-* 将 `OSEventType` 设定为 `OS_EVENT_TYPE_MUTEX`
-* 将 `OSEventCnt` 的高 8 位保存 PIP，低 8 位置为 `0xFF`
-* 当 mutex 被任务占用时，低 8 位用于保存占用任务的优先级
+- 从空闲 ECB 链表中取出一个 ECB
+- 将 `OSEventType` 设定为 `OS_EVENT_TYPE_MUTEX`
+- 将 `OSEventCnt` 的高 8 位保存 PIP，低 8 位置为 `0xFF`
+- 当 mutex 被任务占用时，低 8 位用于保存占用任务的优先级
 
 ```c
 /*
@@ -148,21 +126,14 @@ OS_EVENT  *OSMutexCreate (INT8U   prio,
 }
 ```
 
----
-
 ## 6.2.3 删除互斥信号量 - OSMutexDel() 函数
 
-删除一个 mutex
+删除一个 mutex。需要指定一个删除选项：
 
-需要指定一个删除选项：
+- `OS_DEL_NO_PEND` - 仅在没有任何任务等待 mutex 时才删除
+- `OS_DEL_ALWAYS` - 无论有没有任务等待，都立刻删除 mutex，所有等待 mutex 的任务立刻就绪
 
-* `OS_DEL_NO_PEND` - 仅在没有任何任务等待 mutex 时才删除
-* `OS_DEL_ALWAYS` - 无论有没有任务等待，都立刻删除 mutex
-    * 所有等待 mutex 的任务立刻就绪
-
-原理：
-
-* 将 ECB 中的内容清空，并归还空闲 ECB 链表
+原理：将 ECB 中的内容清空，并归还空闲 ECB 链表。
 
 ```c
 /*
@@ -309,27 +280,16 @@ OS_EVENT  *OSMutexDel (OS_EVENT  *pevent,
 #endif
 ```
 
----
-
 ## 6.2.4 等待互斥信号量 - OSMutexPend() 函数
 
-等待一个互斥信号量
-
-如果 mutex 已被占用
-
-* 则将任务加入 mutex 的等待列表中
-* 直到得到 mutex 或延时期满
-
-如果在延时期内 mutex 被释放
-
-等待 mutex 的最高优先级的任务进入就绪状态
+等待一个互斥信号量。如果 mutex 已被占用，则将任务加入 mutex 的等待列表中，直到得到 mutex 或延时期满。如果在延时期内 mutex 被释放，等待 mutex 的最高优先级的任务进入就绪状态。
 
 原理：
 
-* 访问 ECB 中的 `OSEventCnt` 变量
-* 如果可用，则直接占用 mutex，并将优先级保存在低 8 位中
-* 如果当前 mutex 被占用，且当前任务优先级高于占用者优先级，需要将占用者优先级提升为 PIP
-* 挂起任务，直到得到 mutex 或延时期满
+- 访问 ECB 中的 `OSEventCnt` 变量
+- 如果可用，则直接占用 mutex，并将优先级保存在低 8 位中
+- 如果当前 mutex 被占用，且当前任务优先级高于占用者优先级，需要将占用者优先级提升为 PIP
+- 挂起任务，直到得到 mutex 或延时期满
 
 ```c
 /*
@@ -507,21 +467,19 @@ void  OSMutexPend (OS_EVENT  *pevent,
 }
 ```
 
----
-
 ## 6.2.5 释放互斥信号量 - OSMutexPost() 函数
 
-发出一个 mutex
+发出一个 mutex：
 
-* 如果 mutex 占用者的优先级已经被升高，则恢复原优先级
-* 如果多个任务在等待 mutex，则具有最高优先级的任务获得 mutex，并进行任务切换
+- 如果 mutex 占用者的优先级已经被升高，则恢复原优先级
+- 如果多个任务在等待 mutex，则具有最高优先级的任务获得 mutex，并进行任务切换
 
 原理：
 
-* 检查 mutex 释放者的优先级是否被提升；如果提升，则恢复至原有优先级
-* 检查是否有任务在等待该 mutex
-    * 如果有，则最高优先级的任务得到这个 mutex
-    * 如果没有，则将 mutex 置为可用状态
+- 检查 mutex 释放者的优先级是否被提升；如果提升，则恢复至原有优先级
+- 检查是否有任务在等待该 mutex
+  - 如果有，则最高优先级的任务得到这个 mutex
+  - 如果没有，则将 mutex 置为可用状态
 
 ```c
 /*
@@ -603,19 +561,14 @@ INT8U  OSMutexPost (OS_EVENT *pevent)
 }
 ```
 
----
-
 ## 6.2.6 无等待地获取互斥信号量 - OSMutexAccept() 函数
 
-查看互斥信号量是否可用
+查看互斥信号量是否可用。调用者不会被挂起。
 
-调用者不会被挂起
+原理：通过判断 ECB `OSEventCnt` 的低 8 位判断 mutex 是否可用
 
-原理：
-
-* 通过判断 ECB `OSEventCnt` 的低 8 位判断 mutex 是否可用
-    * 如果可用，则将调用者优先级保存至低 8 位，并占用 mutex
-    * 如果不可用，则返回 0
+- 如果可用，则将调用者优先级保存至低 8 位，并占用 mutex
+- 如果不可用，则返回 0
 
 ```c
 /*
@@ -704,11 +657,9 @@ BOOLEAN  OSMutexAccept (OS_EVENT  *pevent,
 #endif
 ```
 
----
-
 ## 6.2.7 获取当前互斥信号量的状态 - OSMutexQuery() 函数
 
-通过 `OS_MUTEX_DATA` 数据结构来复制 mutex ECB 中当前的状态
+通过 `OS_MUTEX_DATA` 数据结构来复制 mutex ECB 中当前的状态。
 
 ```c
 /*
@@ -776,13 +727,6 @@ INT8U  OSMutexQuery (OS_EVENT       *pevent,
 #endif
 ```
 
----
-
 ## Summary
 
-与普通的信号量基本相同吧
-
-需要注意的是对于 PIP 的处理
-
----
-
+与普通的信号量基本相同吧，需要注意的是对于 PIP 的处理。
